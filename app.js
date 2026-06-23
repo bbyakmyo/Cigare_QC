@@ -8,6 +8,11 @@
   const GRID_SIZES_KEY = 'cigare_grid_sizes_v1';
   const BUNDLE_KEY = 'cigare_bundle_v1';
   const MACHINE_KEY = 'cigare_machine_v1';
+  const GITHUB_SETTINGS_KEY = 'cigare_github_settings_v1';
+
+  // WARNING: Hardcoding a GitHub PAT in client-side JS exposes the token to anyone who can view the page source.
+  // Use this only for personal, non-sensitive repos and rotate the token frequently.
+  const DEFAULT_GITHUB_TOKEN = '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';
 
   const AREA_ORDER = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'BA1', 'BA2', 'BB1'];
 
@@ -19,6 +24,7 @@
   let pickerTarget = null;
   let receiptSections = [];
   let receiptCurrentSection = 0;
+  let originalCigareText = '';
   let numberData = loadData(NUMBERS_KEY);
   let currentPositions = loadPositions();
   let gridSizes = loadData(GRID_SIZES_KEY);
@@ -61,6 +67,15 @@
     importBtn: document.getElementById('importBtn'),
     loadCigareBtn: document.getElementById('loadCigareBtn'),
     cigareFile: document.getElementById('cigareFile'),
+    configSection: document.getElementById('configSection'),
+    configToggle: document.getElementById('configToggle'),
+    configBody: document.getElementById('configBody'),
+    refreshCigareBtn: document.getElementById('refreshCigareBtn'),
+    githubOwner: document.getElementById('githubOwner'),
+    githubRepo: document.getElementById('githubRepo'),
+    githubBranch: document.getElementById('githubBranch'),
+    githubToken: document.getElementById('githubToken'),
+    saveToGithubBtn: document.getElementById('saveToGithubBtn'),
     toast: document.getElementById('toast')
   };
 
@@ -164,9 +179,9 @@
     let currentGroup = [];
     let productId = 0;
 
-    lines.forEach(function(line) {
-      line = line.trim();
-      if (line === '---') {
+    lines.forEach(function(line, lineIndex) {
+      const trimmed = line.trim();
+      if (trimmed === '---') {
         if (currentGroup.length > 0) {
           groups.push(currentGroup);
           currentGroup = [];
@@ -181,6 +196,7 @@
       const after = line.substring(idx + 1).trim();
       const positions = parsePositions(after);
       const status = getStatus(after);
+      const isMachine = /^\[기계\]/.test(name.trim());
 
       positions.forEach(function(pos) {
         const parts = pos.split('-');
@@ -199,8 +215,7 @@
         areaCells[area][key].push(name);
       });
 
-      const isMachine = /^\[기계\]/.test(name.trim());
-      const product = { id: productId++, name: name, status: status, positions: positions, isMachine: isMachine };
+      const product = { id: productId++, name: name, status: status, positions: positions, isMachine: isMachine, lineIndex: lineIndex };
       allProducts.push(product);
       currentGroup.push(product);
     });
@@ -242,6 +257,7 @@
   }
 
   function processCigareText(text) {
+    originalCigareText = text;
     const parsed = parseCigareText(text);
     AREAS = parsed.AREAS;
     AREA_CELLS = parsed.AREA_CELLS;
@@ -462,8 +478,8 @@
     els.areaTitle.textContent = area;
     els.areaSize.textContent = cfg.rows + ' × ' + cfg.cols;
     els.grid.innerHTML = '';
-    els.grid.style.gridTemplateColumns = 'repeat(' + cfg.cols + ', minmax(44px, 1fr))';
-    els.grid.style.gridTemplateRows = 'repeat(' + cfg.rows + ', minmax(44px, 1fr))';
+    els.grid.style.gridTemplateColumns = 'repeat(' + cfg.cols + ', minmax(52px, 1fr))';
+    els.grid.style.gridTemplateRows = 'repeat(' + cfg.rows + ', minmax(52px, 1fr))';
 
     const cells = buildAreaCells();
 
@@ -513,6 +529,11 @@
     input.addEventListener('keydown', function(e) {
       if (e.key === 'Enter') {
         e.preventDefault();
+        focusNextInput(input);
+      }
+    });
+    input.addEventListener('focusout', function(e) {
+      if (!e.relatedTarget) {
         focusNextInput(input);
       }
     });
@@ -1007,6 +1028,140 @@
     els.receiptNextBtn.disabled = receiptCurrentSection === receiptSections.length - 1;
   }
 
+  function generateUpdatedCigareText() {
+    if (!originalCigareText || !ALL_PRODUCTS) return originalCigareText || '';
+    const lines = originalCigareText.split(/\r?\n/);
+    ALL_PRODUCTS.forEach(function(product) {
+      const positions = getEffectivePositions(product);
+      let newAfter;
+      if (positions.length > 0) {
+        newAfter = positions.join(' , ');
+      } else if (product.status === 'discontinued') {
+        newAfter = '0';
+      } else {
+        newAfter = '?';
+      }
+      const line = lines[product.lineIndex];
+      if (typeof line !== 'string') return;
+      const idx = line.indexOf('/');
+      if (idx >= 0) {
+        const name = line.substring(0, idx).trim();
+        lines[product.lineIndex] = name + ' / ' + newAfter;
+      }
+    });
+    return lines.join('\n');
+  }
+
+  function toggleConfigSection() {
+    if (!els.configSection) return;
+    els.configSection.classList.toggle('collapsed');
+  }
+
+  function detectGithubRepoFromUrl() {
+    const hostname = window.location.hostname;
+    if (!hostname || !hostname.endsWith('.github.io')) return null;
+    const parts = hostname.split('.');
+    const owner = parts[0];
+    const pathParts = window.location.pathname.split('/').filter(function(p) { return p; });
+    const repo = pathParts.length > 0 ? pathParts[0] : '';
+    if (!owner || !repo) return null;
+    return { owner: owner, repo: repo };
+  }
+
+  function loadGithubSettings() {
+    const settings = loadData(GITHUB_SETTINGS_KEY);
+    const detected = (!settings.owner || !settings.repo) ? detectGithubRepoFromUrl() : null;
+    if (els.githubOwner) els.githubOwner.value = settings.owner || (detected ? detected.owner : '');
+    if (els.githubRepo) els.githubRepo.value = settings.repo || (detected ? detected.repo : '');
+    if (els.githubBranch) els.githubBranch.value = settings.branch || 'main';
+    if (els.githubToken) els.githubToken.value = settings.token || '';
+  }
+
+  function saveGithubSettings() {
+    const settings = {
+      owner: els.githubOwner ? els.githubOwner.value.trim() : '',
+      repo: els.githubRepo ? els.githubRepo.value.trim() : '',
+      branch: els.githubBranch ? els.githubBranch.value.trim() : 'main',
+      token: els.githubToken ? els.githubToken.value.trim() : ''
+    };
+    saveData(GITHUB_SETTINGS_KEY, settings);
+  }
+
+  function utf8ToBase64(text) {
+    const utf8Bytes = new TextEncoder().encode(text);
+    let binary = '';
+    utf8Bytes.forEach(function(b) {
+      binary += String.fromCharCode(b);
+    });
+    return btoa(binary);
+  }
+
+  function saveCigareToGithub() {
+    const detected = detectGithubRepoFromUrl();
+    const owner = els.githubOwner.value.trim() || (detected ? detected.owner : '');
+    const repo = els.githubRepo.value.trim() || (detected ? detected.repo : '');
+    const branch = els.githubBranch.value.trim() || 'main';
+    const token = els.githubToken.value.trim() || DEFAULT_GITHUB_TOKEN;
+    const path = 'Cigare.txt';
+
+    if (!owner || !repo || !token) {
+      alert('GitHub 소유자, 저장소, 토큰을 입력해주세요.');
+      return;
+    }
+
+    saveGithubSettings();
+    const content = generateUpdatedCigareText();
+    const apiBase = 'https://api.github.com/repos/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo) + '/contents/' + encodeURIComponent(path);
+
+    fetch(apiBase + '?ref=' + encodeURIComponent(branch), {
+      headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' }
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error('현재 파일 조회 실패 (' + res.status + ')');
+      return res.json();
+    })
+    .then(function(data) {
+      const sha = data.sha;
+      return fetch(apiBase, {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'token ' + token,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: 'Update Cigare.txt from cigare site',
+          content: utf8ToBase64(content),
+          sha: sha,
+          branch: branch
+        })
+      });
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error('저장 실패 (' + res.status + ')');
+      showToast('GitHub에 Cigare.txt 저장 완료');
+    })
+    .catch(function(err) {
+      alert('GitHub 저장 실패: ' + err.message);
+    });
+  }
+
+  function refreshCigareFromGithub() {
+    fetch('Cigare.txt?_=' + Date.now())
+      .then(function(res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.text();
+      })
+      .then(function(text) {
+        processCigareText(text);
+        showToast('Cigare.txt 변경사항이 적용되었습니다.');
+      })
+      .catch(function(err) {
+        console.error('Failed to refresh Cigare.txt', err);
+        alert('Cigare.txt를 불러올 수 없습니다. GitHub Pages에서 실행 중인지 확인해주세요.');
+      });
+  }
+
   function showToast(message) {
     if (!els.toast) return;
     els.toast.textContent = message;
@@ -1221,6 +1376,37 @@
         e.target.value = '';
       }
     });
+
+    if (els.configToggle) {
+      els.configToggle.addEventListener('click', toggleConfigSection);
+    }
+    if (els.refreshCigareBtn) {
+      els.refreshCigareBtn.addEventListener('click', refreshCigareFromGithub);
+    }
+    if (els.saveToGithubBtn) {
+      els.saveToGithubBtn.addEventListener('click', saveCigareToGithub);
+    }
+    if (els.githubOwner) {
+      ['change', 'blur'].forEach(function(evt) {
+        els.githubOwner.addEventListener(evt, saveGithubSettings);
+      });
+    }
+    if (els.githubRepo) {
+      ['change', 'blur'].forEach(function(evt) {
+        els.githubRepo.addEventListener(evt, saveGithubSettings);
+      });
+    }
+    if (els.githubBranch) {
+      ['change', 'blur'].forEach(function(evt) {
+        els.githubBranch.addEventListener(evt, saveGithubSettings);
+      });
+    }
+    if (els.githubToken) {
+      ['change', 'blur'].forEach(function(evt) {
+        els.githubToken.addEventListener(evt, saveGithubSettings);
+      });
+    }
+    loadGithubSettings();
   }
 
   init();

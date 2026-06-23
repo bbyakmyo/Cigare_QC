@@ -185,6 +185,15 @@ body {
   min-height: 0;
 }
 
+.grid-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.grid-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.25);
+  border-radius: 3px;
+}
+
 .grid {
   display: grid;
   gap: 2px;
@@ -611,10 +620,42 @@ body {
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
-.config-section h3 {
+.config-toggle {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: none;
+  border: none;
   font-size: 13px;
   font-weight: 700;
-  margin-bottom: 4px;
+  color: var(--text);
+  padding: 0;
+  cursor: pointer;
+}
+
+.config-toggle-icon {
+  font-size: 11px;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.config-section.collapsed .config-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+.config-body {
+  overflow: hidden;
+  transition: max-height 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
+  max-height: 500px;
+  opacity: 1;
+  margin-top: 8px;
+}
+
+.config-section.collapsed .config-body {
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
 }
 
 .config-section p {
@@ -622,6 +663,31 @@ body {
   color: var(--text-secondary);
   margin-bottom: 6px;
   line-height: 1.3;
+}
+
+.github-save h4 {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.github-save p {
+  font-size: 10px;
+  margin-bottom: 6px;
+}
+
+.github-save a {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.github-save input {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
 }
 
 .load-error {
