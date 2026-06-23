@@ -1,0 +1,140 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>담배 주문</title>
+  <script>
+    (function() {
+      function setVH() {
+        const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        document.documentElement.style.setProperty('--vh', (height * 0.01) + 'px');
+      }
+      window.addEventListener('resize', setVH);
+      window.addEventListener('orientationchange', setVH);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', setVH);
+      }
+      setVH();
+    })();
+  </script>
+  <link rel="stylesheet" href="style.css?v=23">
+</head>
+<body>
+    <nav class="mode-tabs">
+      <button class="mode-tab active" data-mode="grid" id="modeGrid">매대</button>
+      <button class="mode-tab" data-mode="bundle" id="modeBundle">보루</button>
+      <button class="mode-tab" data-mode="machine" id="modeMachine">기계</button>
+    </nav>
+  </header>
+
+  <nav class="area-tabs" id="areaTabs"></nav>
+
+  <div class="settings-bar" id="settingsBar">
+    <span>그리드 사이즈</span>
+    <input type="number" id="sizeRows" min="1" inputmode="numeric" pattern="[0-9]*">
+    <span>×</span>
+    <input type="number" id="sizeCols" min="1" inputmode="numeric" pattern="[0-9]*">
+    <button class="btn btn-primary" id="doneSettingsBtn">설정 완료</button>
+  </div>
+
+  <main class="main">
+    <section class="grid-section" id="gridSection">
+      <div class="grid-header">
+        <h2 id="areaTitle">G1</h2>
+        <span id="areaSize">8 × 7</span>
+      </div>
+      <div class="grid-scroll" id="gridScroll">
+        <div class="grid" id="grid"></div>
+      </div>
+    </section>
+
+    <section class="bundle-section" id="bundleSection" style="display:none;">
+      <div class="bundle-header">
+        <h2>보루 입력</h2>
+        <span>보루 1개 = +10</span>
+      </div>
+      <div class="bundle-list" id="bundleList"></div>
+    </section>
+
+    <section class="machine-section" id="machineSection" style="display:none;">
+      <div class="machine-header">
+        <h2>기계 입력</h2>
+        <span>숫자 그대로 합산</span>
+      </div>
+      <div class="machine-list" id="machineList"></div>
+    </section>
+
+    <section class="actions">
+      <button class="btn btn-primary" id="printBtn">영수증 출력</button>
+      <button class="btn btn-secondary" id="clearBtn">숫자 모두 지우기</button>
+      <button class="btn btn-secondary" id="settingsBtn">설정</button>
+    </section>
+
+  </main>
+
+  <section class="config-section">
+    <h3>설정 파일</h3>
+    <p>상품 위치 변경: Cigare.txt를 GitHub에서 직접 수정<br>입력한 숫자/위치/볼 루 설정: 아래 저장/불러오기 사용</p>
+    <div class="config-actions">
+      <button class="btn btn-secondary" id="exportBtn">현재 상태 저장</button>
+      <label class="btn btn-secondary file-label">
+        불러오기
+        <input type="file" id="importBtn" accept=".json,application/json" hidden>
+      </label>
+      <button class="btn btn-secondary" id="loadCigareBtn">Cigare.txt 불러오기</button>
+      <input type="file" id="cigareFile" accept=".txt,text/plain" hidden>
+    </div>
+  </section>
+
+  <div class="picker-modal" id="pickerModal">
+    <div class="picker-content">
+      <div class="picker-header">
+        <h2>제품 선택</h2>
+        <button class="picker-close" id="pickerClose">×</button>
+      </div>
+      <div class="picker-body">
+        <div class="picker-target" id="pickerTarget">위치: -</div>
+        <input type="text" id="pickerSearch" placeholder="제품 검색 (초성 가능)">
+        <div class="product-results" id="pickerResults"></div>
+        <button class="btn btn-secondary" id="pickerClearBtn">이 위치 비우기</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="receipt-modal" id="receiptModal">
+    <div class="receipt-content">
+      <div class="receipt-header">
+        <h2>영수증</h2>
+        <button class="receipt-close" id="receiptClose">×</button>
+      </div>
+      <div class="receipt-body">
+        <div id="receiptText" class="receipt-text"></div>
+      </div>
+      <div class="receipt-nav">
+        <button class="btn btn-secondary" id="receiptPrevBtn">이전</button>
+        <span id="receiptPage">1 / 1</span>
+        <button class="btn btn-secondary" id="receiptNextBtn">다음</button>
+      </div>
+      <div class="receipt-actions">
+        <button class="btn btn-primary" id="copyBtn">복사</button>
+        <button class="btn btn-secondary" id="closeModalBtn">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=23"></script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
