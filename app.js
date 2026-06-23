@@ -12,7 +12,7 @@
 
   // WARNING: Hardcoding a GitHub PAT in client-side JS exposes the token to anyone who can view the page source.
   // Use this only for personal, non-sensitive repos and rotate the token frequently.
-  const DEFAULT_GITHUB_TOKEN = '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';
+  const DEFAULT_GITHUB_TOKEN = '';
 
   const AREA_ORDER = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'BA1', 'BA2', 'BB1'];
 
