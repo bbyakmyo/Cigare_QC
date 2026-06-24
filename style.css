@@ -101,13 +101,19 @@ body {
   font-size: 13px;
 }
 
+.area-tabs-wrap {
+  display: flex;
+  align-items: center;
+  background-color: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
 .area-tabs {
+  flex: 1;
   display: flex;
   overflow-x: auto;
   gap: 6px;
   padding: 6px 10px;
-  background-color: var(--card);
-  border-bottom: 1px solid var(--border);
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
@@ -118,14 +124,14 @@ body {
 
 .area-add-btn {
   flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  margin: 6px 10px 6px 0;
+  width: 32px;
+  height: 32px;
+  margin: 0 10px 0 0;
   border: 1px solid var(--primary);
   border-radius: 50%;
   background-color: var(--primary);
   color: #fff;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
@@ -198,7 +204,9 @@ body {
 
 .grid-scroll {
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow-y: scroll;
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
   overscroll-behavior: contain;
@@ -218,6 +226,7 @@ body {
 }
 
 .grid {
+  flex: 0 0 auto;
   display: grid;
   gap: 2px;
   padding: 2px;

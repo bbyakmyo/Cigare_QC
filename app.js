@@ -39,6 +39,7 @@
     machineSection: document.getElementById('machineSection'),
     machineList: document.getElementById('machineList'),
     grid: document.getElementById('grid'),
+    gridScroll: document.getElementById('gridScroll'),
     areaTitle: document.getElementById('areaTitle'),
     areaSize: document.getElementById('areaSize'),
     settingsBar: document.getElementById('settingsBar'),
@@ -558,8 +559,8 @@
     els.areaTitle.textContent = area;
     els.areaSize.textContent = cfg.rows + ' × ' + cfg.cols;
     els.grid.innerHTML = '';
-    els.grid.style.gridTemplateColumns = 'repeat(' + cfg.cols + ', minmax(52px, 1fr))';
-    els.grid.style.gridTemplateRows = 'repeat(' + cfg.rows + ', minmax(52px, 1fr))';
+    els.grid.style.gridTemplateColumns = 'repeat(' + cfg.cols + ', minmax(0, 1fr))';
+    els.grid.style.gridTemplateRows = 'repeat(' + cfg.rows + ', 60px)';
 
     const cells = buildAreaCells();
 
@@ -1477,6 +1478,14 @@
     }
     if (els.exportCigareBtn) {
       els.exportCigareBtn.addEventListener('click', exportUpdatedCigare);
+    }
+
+    if (els.gridScroll) {
+      try {
+        els.gridScroll.addEventListener('touchstart', function() {}, { passive: true });
+      } catch (e) {
+        els.gridScroll.addEventListener('touchstart', function() {});
+      }
     }
 
     if (els.areaAddBtn) {
