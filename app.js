@@ -40,6 +40,8 @@
     machineList: document.getElementById('machineList'),
     grid: document.getElementById('grid'),
     gridScroll: document.getElementById('gridScroll'),
+    scrollGridUpBtn: document.getElementById('scrollGridUpBtn'),
+    scrollGridDownBtn: document.getElementById('scrollGridDownBtn'),
     areaTitle: document.getElementById('areaTitle'),
     areaSize: document.getElementById('areaSize'),
     settingsBar: document.getElementById('settingsBar'),
@@ -298,20 +300,52 @@
     };
   }
 
+  function scrollGridDown() {
+    if (!els.gridScroll) return;
+    const scrollAmount = els.gridScroll.clientHeight * 0.8;
+    els.gridScroll.scrollTop += scrollAmount;
+  }
+
+  function scrollGridUp() {
+    if (!els.gridScroll) return;
+    const scrollAmount = els.gridScroll.clientHeight * 0.8;
+    els.gridScroll.scrollTop -= scrollAmount;
+  }
+
+  function enableGridTouchScroll() {
+    if (!els.grid || !els.gridScroll) return;
+    let startY = 0;
+    let startScrollTop = 0;
+    let startX = 0;
+    let isDragging = false;
+
+    els.grid.addEventListener('touchstart', function(e) {
+      if (e.touches.length !== 1) return;
+      startY = e.touches[0].clientY;
+      startX = e.touches[0].clientX;
+      startScrollTop = els.gridScroll.scrollTop;
+      isDragging = false;
+    }, { passive: true });
+
+    els.grid.addEventListener('touchmove', function(e) {
+      if (e.touches.length !== 1) return;
+      const y = e.touches[0].clientY;
+      const x = e.touches[0].clientX;
+      const deltaY = startY - y;
+      const deltaX = Math.abs(x - startX);
+      if (Math.abs(deltaY) > 8 || deltaX > 8) {
+        isDragging = true;
+      }
+      if (isDragging) {
+        els.gridScroll.scrollTop = startScrollTop + deltaY;
+      }
+    }, { passive: true });
+  }
+
   function init() {
     bindEvents();
-    fetch('Cigare.txt')
-      .then(function(res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.text();
-      })
-      .then(function(text) {
-        processCigareText(text);
-      })
-      .catch(function(err) {
-        console.error('Failed to load Cigare.txt', err);
-        showCigareFileLoader();
-      });
+    enableGridTouchScroll();
+    showCigareFileLoader();
   }
 
   function hashString(str) {
@@ -357,7 +391,7 @@
     wrapper.className = 'load-error';
 
     const msg = document.createElement('p');
-    msg.textContent = 'Cigare.txt를 자동으로 불러올 수 없습니다.';
+    msg.textContent = 'Cigare.txt 파일을 선택해주세요.';
     wrapper.appendChild(msg);
 
     const sub = document.createElement('p');
@@ -617,6 +651,11 @@
       if (!e.relatedTarget) {
         focusNextInput(input);
       }
+    });
+    input.addEventListener('focus', function() {
+      setTimeout(function() {
+        cell.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 300);
     });
     cell.appendChild(input);
 
@@ -1478,6 +1517,12 @@
     }
     if (els.exportCigareBtn) {
       els.exportCigareBtn.addEventListener('click', exportUpdatedCigare);
+    }
+    if (els.scrollGridUpBtn) {
+      els.scrollGridUpBtn.addEventListener('click', scrollGridUp);
+    }
+    if (els.scrollGridDownBtn) {
+      els.scrollGridDownBtn.addEventListener('click', scrollGridDown);
     }
 
     if (els.gridScroll) {

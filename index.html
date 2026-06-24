@@ -19,7 +19,7 @@
       setVH();
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=33">
+  <link rel="stylesheet" href="style.css?v=35">
 </head>
 <body>
     <nav class="mode-tabs">
@@ -93,6 +93,15 @@
         </label>
         <button class="btn btn-secondary" id="loadCigareBtn">Cigare.txt 불러오기</button>
         <input type="file" id="cigareFile" accept=".txt,text/plain" hidden>
+      </div>
+      <hr style="border: none; border-top: 1px solid var(--border); margin: 10px 0;">
+      <div class="grid-scroll-helper">
+        <h4>그리드 스크롤 도우미</h4>
+        <p>스마트폰에서 그리드 드래그가 안 될 때 아래 버튼으로 이동할 수 있습니다.</p>
+        <div class="config-actions">
+          <button class="btn btn-secondary" id="scrollGridUpBtn">그리드 올리기</button>
+          <button class="btn btn-secondary" id="scrollGridDownBtn">그리드 내리기</button>
+        </div>
       </div>
       <hr style="border: none; border-top: 1px solid var(--border); margin: 10px 0;">
       <div class="cigare-export">
@@ -172,7 +181,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=33"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>
 
