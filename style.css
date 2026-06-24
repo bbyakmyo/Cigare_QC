@@ -159,6 +159,7 @@ body {
   overflow: hidden;
   padding: 6px;
   gap: 6px;
+  min-height: 0;
 }
 
 .grid-section {
@@ -166,6 +167,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   background-color: var(--card);
   border-radius: 12px;
   padding: 6px;
@@ -198,6 +200,9 @@ body {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+  position: relative;
   border-radius: 12px;
   border: 1px solid var(--border);
   min-height: 0;
@@ -217,6 +222,7 @@ body {
   gap: 2px;
   padding: 2px;
   width: 100%;
+  touch-action: pan-y;
 }
 
 .grid-cell {
@@ -232,6 +238,7 @@ body {
   text-align: center;
   position: relative;
   overflow: hidden;
+  touch-action: pan-y;
 }
 
 .grid-cell.filled {
@@ -288,6 +295,7 @@ body {
   font-weight: 700;
   color: var(--text);
   min-height: 0;
+  touch-action: pan-y;
 }
 
 .cell-input:focus {
