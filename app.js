@@ -22,6 +22,7 @@
   let pickerTarget = null;
   let receiptSections = [];
   let receiptCurrentSection = 0;
+  let receiptFullView = false;
   let originalCigareText = '';
   let numberData = loadData(NUMBERS_KEY);
   let currentPositions = loadPositions();
@@ -40,6 +41,14 @@
     machineList: document.getElementById('machineList'),
     grid: document.getElementById('grid'),
     gridScroll: document.getElementById('gridScroll'),
+    gridRemote: document.getElementById('gridRemote'),
+    remotePos: document.getElementById('remotePos'),
+    remoteName: document.getElementById('remoteName'),
+    remoteLeft: document.getElementById('remoteLeft'),
+    remoteUp: document.getElementById('remoteUp'),
+    remoteDown: document.getElementById('remoteDown'),
+    remoteRight: document.getElementById('remoteRight'),
+    remoteInput: document.getElementById('remoteInput'),
     scrollGridUpBtn: document.getElementById('scrollGridUpBtn'),
     scrollGridDownBtn: document.getElementById('scrollGridDownBtn'),
     areaTitle: document.getElementById('areaTitle'),
@@ -64,6 +73,7 @@
     receiptPrevBtn: document.getElementById('receiptPrevBtn'),
     receiptNextBtn: document.getElementById('receiptNextBtn'),
     receiptPage: document.getElementById('receiptPage'),
+    receiptViewToggleBtn: document.getElementById('receiptViewToggleBtn'),
     closeModalBtn: document.getElementById('closeModalBtn'),
     copyBtn: document.getElementById('copyBtn'),
     exportBtn: document.getElementById('exportBtn'),
@@ -588,6 +598,71 @@
     }
   }
 
+  let selectedRemoteCell = null;
+
+  function initRemoteCell() {
+    if (!currentArea) return;
+    const cfg = getGridSize(currentArea);
+    selectedRemoteCell = { area: currentArea, col: 1, row: 1 };
+    updateRemoteDisplay();
+  }
+
+  function findCellElement(area, col, row) {
+    return els.grid.querySelector('.grid-cell[data-area="' + area + '"][data-col="' + col + '"][data-row="' + row + '"]');
+  }
+
+  function selectRemoteCell(area, col, row) {
+    const cfg = getGridSize(area);
+    if (col < 1) col = cfg.rows;
+    if (col > cfg.rows) col = 1;
+    if (row < 1) row = cfg.cols;
+    if (row > cfg.cols) row = 1;
+
+    const old = selectedRemoteCell ? findCellElement(selectedRemoteCell.area, selectedRemoteCell.col, selectedRemoteCell.row) : null;
+    if (old) old.classList.remove('remote-selected');
+
+    selectedRemoteCell = { area: area, col: col, row: row };
+    const cell = findCellElement(area, col, row);
+    if (cell) {
+      cell.classList.add('remote-selected');
+      cell.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    }
+    updateRemoteDisplay();
+  }
+
+  function moveRemoteCell(dCol, dRow) {
+    if (!selectedRemoteCell) {
+      initRemoteCell();
+      return;
+    }
+    selectRemoteCell(selectedRemoteCell.area, selectedRemoteCell.col + dCol, selectedRemoteCell.row + dRow);
+  }
+
+  function updateRemoteDisplay() {
+    if (!selectedRemoteCell) return;
+    const cell = findCellElement(selectedRemoteCell.area, selectedRemoteCell.col, selectedRemoteCell.row);
+    if (!cell) return;
+
+    const input = cell.querySelector('.cell-input');
+    const productIds = buildAreaCells()[selectedRemoteCell.area] && buildAreaCells()[selectedRemoteCell.area][selectedRemoteCell.col + '-' + selectedRemoteCell.row];
+    const product = productIds && productIds.length > 0 ? getProductById(productIds[0]) : null;
+
+    if (els.remotePos) els.remotePos.textContent = selectedRemoteCell.area + ' ' + selectedRemoteCell.col + '-' + selectedRemoteCell.row;
+    if (els.remoteName) els.remoteName.textContent = product ? cleanName(product.name) : '빈 칸';
+    if (els.remoteInput) els.remoteInput.value = input ? input.value : '';
+  }
+
+  function applyRemoteValue() {
+    if (!selectedRemoteCell || !els.remoteInput) return;
+    const cell = findCellElement(selectedRemoteCell.area, selectedRemoteCell.col, selectedRemoteCell.row);
+    if (!cell) return;
+    const input = cell.querySelector('.cell-input');
+    if (!input || input.disabled) return;
+    const value = els.remoteInput.value.replace(/[^0-9]/g, '');
+    input.value = value;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
   function renderGrid(area) {
     const cfg = getGridSize(area);
     els.areaTitle.textContent = area;
@@ -607,9 +682,22 @@
         const cell = createCell(area, originalCol, originalRow, productIds);
         cell.style.gridRow = r;
         cell.style.gridColumn = c;
+        cell.dataset.area = area;
+        cell.dataset.col = originalCol;
+        cell.dataset.row = originalRow;
         els.grid.appendChild(cell);
       }
     }
+
+    if (selectedRemoteCell && selectedRemoteCell.area === area) {
+      const cell = findCellElement(area, selectedRemoteCell.col, selectedRemoteCell.row);
+      if (cell) cell.classList.add('remote-selected');
+    } else {
+      selectedRemoteCell = { area: area, col: 1, row: 1 };
+      const cell = findCellElement(area, 1, 1);
+      if (cell) cell.classList.add('remote-selected');
+    }
+    updateRemoteDisplay();
   }
 
   function createCell(area, col, row, productIds) {
@@ -1056,37 +1144,58 @@
   }
 
   function generateReceipt() {
-    const groups = [];
-    const items = [];
     const order = receiptOrder.length ? receiptOrder : ALL_PRODUCTS.map(function(p) { return p.id; });
-    order.forEach(function(pid) {
-      const product = getProductById(pid);
-      if (!product) return;
-      const num = getTotalForProduct(product);
-      items.push({ id: product.id, name: getReceiptProductName(product), num: String(num) });
+    const orderIndex = {};
+    order.forEach(function(pid, idx) {
+      orderIndex[pid] = idx;
     });
 
-    const boundaries = [];
-    let count = 0;
+    const groups = [];
     PRODUCT_GROUPS.forEach(function(group) {
-      count += group.length;
-      boundaries.push(count);
-    });
+      const sorted = group.slice().sort(function(a, b) {
+        return (orderIndex[a.id] || 0) - (orderIndex[b.id] || 0);
+      });
 
-    let current = [];
-    items.forEach(function(item, idx) {
-      current.push(item);
-      if (boundaries.indexOf(idx + 1) >= 0) {
-        groups.push(current);
-        current = [];
-      }
+      const seen = {};
+      const items = [];
+      sorted.forEach(function(product) {
+        const key = cleanName(product.name);
+        if (!seen[key]) {
+          seen[key] = {
+            name: getReceiptProductName(product),
+            ids: [],
+            gridTotal: 0,
+            bundleQty: 0,
+            machineNum: 0
+          };
+          items.push(seen[key]);
+        }
+        const item = seen[key];
+        item.ids.push(product.id);
+        item.bundleQty += getBundleTotal(product.id);
+        item.machineNum += getMachineNumber(product.id);
+        const positions = getEffectivePositions(product);
+        positions.forEach(function(pos) {
+          const parts = pos.split('-');
+          if (parts.length === 3) {
+            item.gridTotal += (parseInt(getNumber(parts[0], parts[1], parts[2]), 10) || 0);
+          }
+        });
+      });
+
+      groups.push(items.map(function(item) {
+        return {
+          ids: item.ids,
+          name: item.name,
+          num: String(item.gridTotal + item.bundleQty * 10 + item.machineNum)
+        };
+      }));
     });
-    if (current.length > 0) groups.push(current);
-    return groups;
+    return groups.filter(function(g) { return g.length > 0; });
   }
 
   function getReceiptProductName(product) {
-    const name = cleanName(product.name);
+    let name = (product.name || '').replace(/^\[기계\]\s*/, '').trim();
     if (product.status === 'unknown') {
       return name + ' (' + getProductCoordinate(product) + ')';
     }
@@ -1105,10 +1214,14 @@
   function getGridNumberForProduct(product) {
     const positions = getEffectivePositions(product);
     if (positions.length === 0) return '0';
-    const firstPos = positions[0];
-    const parts = firstPos.split('-');
-    if (parts.length !== 3) return '0';
-    return getNumber(parts[0], parts[1], parts[2]) || '0';
+    let total = 0;
+    positions.forEach(function(pos) {
+      const parts = pos.split('-');
+      if (parts.length !== 3) return;
+      const num = parseInt(getNumber(parts[0], parts[1], parts[2]), 10) || 0;
+      total += num;
+    });
+    return String(total);
   }
 
   function getBundleTotal(productId) {
@@ -1138,6 +1251,7 @@
   function showReceipt() {
     receiptSections = generateReceipt();
     receiptCurrentSection = 0;
+    receiptFullView = false;
     renderReceiptSection();
     els.receiptModal.classList.add('show');
   }
@@ -1152,17 +1266,42 @@
       els.receiptPage.textContent = '0 / 0';
       els.receiptPrevBtn.disabled = true;
       els.receiptNextBtn.disabled = true;
+      if (els.receiptViewToggleBtn) els.receiptViewToggleBtn.style.display = 'none';
       return;
     }
-    const section = receiptSections[receiptCurrentSection];
     const sep = '<div class="receipt-separator">-------------------------------------</div>';
-    const rows = section.map(function(item) {
-      return '<div class="receipt-row" data-product-id="' + item.id + '"><span class="receipt-name">' + escapeHtml(item.name) + '</span><span class="receipt-num">' + escapeHtml(item.num) + '</span></div>';
-    }).join('');
-    els.receiptText.innerHTML = sep + rows + sep;
-    els.receiptPage.textContent = (receiptCurrentSection + 1) + ' / ' + receiptSections.length;
-    els.receiptPrevBtn.disabled = receiptCurrentSection === 0;
-    els.receiptNextBtn.disabled = receiptCurrentSection === receiptSections.length - 1;
+    let rows;
+    if (receiptFullView) {
+      rows = receiptSections.map(function(section) {
+        return section.map(function(item) {
+          const ids = (item.ids || []).join(',');
+          return '<div class="receipt-row" data-product-ids="' + escapeHtml(ids) + '"><span class="receipt-name">' + escapeHtml(item.name) + '</span><span class="receipt-num">' + escapeHtml(item.num) + '</span></div>';
+        }).join('');
+      }).join(sep);
+      els.receiptText.innerHTML = sep + rows + sep;
+      els.receiptPage.textContent = '전체';
+      els.receiptPrevBtn.disabled = true;
+      els.receiptNextBtn.disabled = true;
+    } else {
+      const section = receiptSections[receiptCurrentSection];
+      rows = section.map(function(item) {
+        const ids = (item.ids || []).join(',');
+        return '<div class="receipt-row" data-product-ids="' + escapeHtml(ids) + '"><span class="receipt-name">' + escapeHtml(item.name) + '</span><span class="receipt-num">' + escapeHtml(item.num) + '</span></div>';
+      }).join('');
+      els.receiptText.innerHTML = sep + rows + sep;
+      els.receiptPage.textContent = (receiptCurrentSection + 1) + ' / ' + receiptSections.length;
+      els.receiptPrevBtn.disabled = receiptCurrentSection === 0;
+      els.receiptNextBtn.disabled = receiptCurrentSection === receiptSections.length - 1;
+    }
+    if (els.receiptViewToggleBtn) {
+      els.receiptViewToggleBtn.style.display = 'inline-flex';
+      els.receiptViewToggleBtn.textContent = receiptFullView ? '부분 보기' : '전체 보기';
+    }
+  }
+
+  function toggleReceiptView() {
+    receiptFullView = !receiptFullView;
+    renderReceiptSection();
   }
 
   function generateUpdatedCigareText() {
@@ -1481,14 +1620,24 @@
     els.copyBtn.addEventListener('click', copyReceipt);
     els.receiptPrevBtn.addEventListener('click', prevReceiptSection);
     els.receiptNextBtn.addEventListener('click', nextReceiptSection);
+    if (els.receiptViewToggleBtn) {
+      els.receiptViewToggleBtn.addEventListener('click', toggleReceiptView);
+    }
     els.receiptText.addEventListener('click', function(e) {
       const row = e.target.closest('.receipt-row');
       if (!row) return;
-      const pid = parseInt(row.dataset.productId, 10);
-      if (isNaN(pid)) return;
-      const product = getProductById(pid);
+      const idsAttr = row.dataset.productIds || '';
+      const ids = idsAttr.split(',').filter(function(s) { return s; }).map(function(s) { return parseInt(s, 10); });
+      if (ids.length === 0) return;
+      const product = getProductById(ids[0]);
       if (!product) return;
-      showToast(cleanName(product.name) + ' 위치: ' + getProductCoordinate(product));
+      const positions = [];
+      ids.forEach(function(id) {
+        const p = getProductById(id);
+        if (p) positions.push(getProductCoordinate(p));
+      });
+      const coordText = positions.length > 1 ? positions.join(', ') : positions[0];
+      showToast(cleanName(product.name) + ' 위치: ' + coordText);
     });
     els.receiptModal.addEventListener('click', function(e) {
       if (e.target === els.receiptModal) hideReceipt();
@@ -1523,6 +1672,24 @@
     }
     if (els.scrollGridDownBtn) {
       els.scrollGridDownBtn.addEventListener('click', scrollGridDown);
+    }
+
+    if (els.remoteLeft) els.remoteLeft.addEventListener('click', function() { moveRemoteCell(-1, 0); });
+    if (els.remoteUp) els.remoteUp.addEventListener('click', function() { moveRemoteCell(0, -1); });
+    if (els.remoteDown) els.remoteDown.addEventListener('click', function() { moveRemoteCell(0, 1); });
+    if (els.remoteRight) els.remoteRight.addEventListener('click', function() { moveRemoteCell(1, 0); });
+    if (els.remoteInput) {
+      els.remoteInput.addEventListener('input', function() {
+        els.remoteInput.value = els.remoteInput.value.replace(/[^0-9]/g, '');
+        applyRemoteValue();
+      });
+      els.remoteInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          applyRemoteValue();
+          els.remoteInput.blur();
+        }
+      });
     }
 
     if (els.gridScroll) {

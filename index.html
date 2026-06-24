@@ -19,7 +19,7 @@
       setVH();
     })();
   </script>
-  <link rel="stylesheet" href="style.css?v=35">
+  <link rel="stylesheet" href="style.css?v=37">
 </head>
 <body>
     <nav class="mode-tabs">
@@ -50,6 +50,21 @@
       </div>
       <div class="grid-scroll" id="gridScroll">
         <div class="grid" id="grid"></div>
+      </div>
+      <div class="grid-remote" id="gridRemote">
+        <div class="remote-info">
+          <span id="remotePos">-</span>
+          <span id="remoteName">리모컨 사용: 화살표로 이동</span>
+        </div>
+        <div class="remote-controls">
+          <button class="remote-btn" id="remoteLeft" aria-label="왼쪽">◀</button>
+          <div class="remote-vertical">
+            <button class="remote-btn" id="remoteUp" aria-label="위">▲</button>
+            <button class="remote-btn" id="remoteDown" aria-label="아래">▼</button>
+          </div>
+          <button class="remote-btn" id="remoteRight" aria-label="오른쪽">▶</button>
+          <input type="tel" id="remoteInput" class="remote-input" inputmode="numeric" pattern="[0-9]*" placeholder="숫자" autocomplete="off">
+        </div>
       </div>
     </section>
 
@@ -144,6 +159,7 @@
         <button class="btn btn-secondary" id="receiptNextBtn">다음</button>
       </div>
       <div class="receipt-actions">
+        <button class="btn btn-secondary" id="receiptViewToggleBtn">전체 보기</button>
         <button class="btn btn-primary" id="copyBtn">복사</button>
         <button class="btn btn-secondary" id="closeModalBtn">닫기</button>
       </div>
@@ -181,7 +197,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>
 
