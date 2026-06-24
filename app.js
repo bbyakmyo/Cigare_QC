@@ -8,11 +8,9 @@
   const GRID_SIZES_KEY = 'cigare_grid_sizes_v1';
   const BUNDLE_KEY = 'cigare_bundle_v1';
   const MACHINE_KEY = 'cigare_machine_v1';
-  const GITHUB_SETTINGS_KEY = 'cigare_github_settings_v1';
-
-  // WARNING: Hardcoding a GitHub PAT in client-side JS exposes the token to anyone who can view the page source.
-  // Use this only for personal, non-sensitive repos and rotate the token frequently.
-  const DEFAULT_GITHUB_TOKEN = '';
+  const CUSTOM_AREAS_KEY = 'cigare_custom_areas_v1';
+  const RECEIPT_ORDER_KEY = 'cigare_receipt_order_v1';
+  const CIGARE_HASH_KEY = 'cigare_hash_v1';
 
   const AREA_ORDER = ['G1', 'G2', 'G3', 'G4', 'G5', 'G6', 'BA1', 'BA2', 'BB1'];
 
@@ -30,6 +28,8 @@
   let gridSizes = loadData(GRID_SIZES_KEY);
   let bundleData = loadData(BUNDLE_KEY);
   let machineData = loadData(MACHINE_KEY);
+  let customAreas = loadData(CUSTOM_AREAS_KEY) || {};
+  let receiptOrder = loadData(RECEIPT_ORDER_KEY) || [];
 
   const els = {
     modeTabs: document.querySelectorAll('.mode-tab'),
@@ -70,12 +70,18 @@
     configSection: document.getElementById('configSection'),
     configToggle: document.getElementById('configToggle'),
     configBody: document.getElementById('configBody'),
-    refreshCigareBtn: document.getElementById('refreshCigareBtn'),
-    githubOwner: document.getElementById('githubOwner'),
-    githubRepo: document.getElementById('githubRepo'),
-    githubBranch: document.getElementById('githubBranch'),
-    githubToken: document.getElementById('githubToken'),
-    saveToGithubBtn: document.getElementById('saveToGithubBtn'),
+    exportCigareBtn: document.getElementById('exportCigareBtn'),
+    areaAddBtn: document.getElementById('areaAddBtn'),
+    areaModal: document.getElementById('areaModal'),
+    areaModalClose: document.getElementById('areaModalClose'),
+    areaModalName: document.getElementById('areaModalName'),
+    areaModalRows: document.getElementById('areaModalRows'),
+    areaModalCols: document.getElementById('areaModalCols'),
+    areaModalAddBtn: document.getElementById('areaModalAddBtn'),
+    sortReceiptBtn: document.getElementById('sortReceiptBtn'),
+    receiptSortModal: document.getElementById('receiptSortModal'),
+    receiptSortClose: document.getElementById('receiptSortClose'),
+    receiptSortList: document.getElementById('receiptSortList'),
     toast: document.getElementById('toast')
   };
 
@@ -140,6 +146,57 @@
 
   function saveMachine() {
     saveData(MACHINE_KEY, machineData);
+  }
+
+  function saveCustomAreas() {
+    saveData(CUSTOM_AREAS_KEY, customAreas);
+  }
+
+  function addCustomArea(name, rows, cols) {
+    const clean = name.trim();
+    if (!clean) return false;
+    const r = parseInt(rows, 10);
+    const c = parseInt(cols, 10);
+    if (isNaN(r) || r < 1 || isNaN(c) || c < 1) return false;
+    customAreas[clean] = { rows: r, cols: c };
+    saveCustomAreas();
+    if (areas.indexOf(clean) < 0) {
+      areas.push(clean);
+      renderTabs();
+    }
+    currentArea = clean;
+    renderMode();
+    return true;
+  }
+
+  function removeCustomArea(name) {
+    if (!customAreas[name]) return;
+    delete customAreas[name];
+    delete gridSizes[name];
+    saveCustomAreas();
+    saveGridSizes();
+    const idx = areas.indexOf(name);
+    if (idx >= 0) areas.splice(idx, 1);
+    if (currentArea === name) currentArea = areas[0] || '';
+    renderTabs();
+    renderMode();
+  }
+
+  function saveReceiptOrder() {
+    saveData(RECEIPT_ORDER_KEY, receiptOrder);
+  }
+
+  function initReceiptOrder() {
+    if (!ALL_PRODUCTS) return;
+    const valid = receiptOrder.filter(function(pid) {
+      return getProductById(pid) !== null;
+    });
+    if (valid.length === ALL_PRODUCTS.length) {
+      receiptOrder = valid;
+    } else {
+      receiptOrder = ALL_PRODUCTS.map(function(p) { return p.id; });
+    }
+    saveReceiptOrder();
   }
 
   function getProductById(id) {
@@ -256,8 +313,24 @@
       });
   }
 
+  function hashString(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return String(hash);
+  }
+
   function processCigareText(text) {
     originalCigareText = text;
+    const newHash = hashString(text);
+    const oldHash = loadData(CIGARE_HASH_KEY);
+    if (newHash !== oldHash) {
+      receiptOrder = [];
+      saveData(CIGARE_HASH_KEY, newHash);
+    }
     const parsed = parseCigareText(text);
     AREAS = parsed.AREAS;
     AREA_CELLS = parsed.AREA_CELLS;
@@ -265,10 +338,14 @@
     PRODUCT_GROUPS = parsed.PRODUCT_GROUPS;
 
     areas = AREA_ORDER.filter(function(a) { return AREAS[a]; });
+    Object.keys(customAreas).forEach(function(name) {
+      if (areas.indexOf(name) < 0) areas.push(name);
+    });
     currentArea = areas[0];
 
     migratePositions();
     migrateBundleData();
+    initReceiptOrder();
     renderTabs();
     renderMode();
   }
@@ -385,6 +462,9 @@
   function getGridSize(area) {
     if (gridSizes[area]) {
       return { rows: gridSizes[area].rows, cols: gridSizes[area].cols };
+    }
+    if (customAreas[area]) {
+      return { rows: customAreas[area].rows, cols: customAreas[area].cols };
     }
     return AREAS[area];
   }
@@ -937,14 +1017,31 @@
 
   function generateReceipt() {
     const groups = [];
-    PRODUCT_GROUPS.forEach(function(group) {
-      const items = [];
-      group.forEach(function(product) {
-        const num = getTotalForProduct(product);
-        items.push({ id: product.id, name: getReceiptProductName(product), num: String(num) });
-      });
-      groups.push(items);
+    const items = [];
+    const order = receiptOrder.length ? receiptOrder : ALL_PRODUCTS.map(function(p) { return p.id; });
+    order.forEach(function(pid) {
+      const product = getProductById(pid);
+      if (!product) return;
+      const num = getTotalForProduct(product);
+      items.push({ id: product.id, name: getReceiptProductName(product), num: String(num) });
     });
+
+    const boundaries = [];
+    let count = 0;
+    PRODUCT_GROUPS.forEach(function(group) {
+      count += group.length;
+      boundaries.push(count);
+    });
+
+    let current = [];
+    items.forEach(function(item, idx) {
+      current.push(item);
+      if (boundaries.indexOf(idx + 1) >= 0) {
+        groups.push(current);
+        current = [];
+      }
+    });
+    if (current.length > 0) groups.push(current);
     return groups;
   }
 
@@ -1029,9 +1126,20 @@
   }
 
   function generateUpdatedCigareText() {
-    if (!originalCigareText || !ALL_PRODUCTS) return originalCigareText || '';
-    const lines = originalCigareText.split(/\r?\n/);
-    ALL_PRODUCTS.forEach(function(product) {
+    if (!ALL_PRODUCTS) return originalCigareText || '';
+    const order = receiptOrder.length ? receiptOrder : ALL_PRODUCTS.map(function(p) { return p.id; });
+    const boundaries = [];
+    let count = 0;
+    PRODUCT_GROUPS.forEach(function(group) {
+      count += group.length;
+      boundaries.push(count);
+    });
+
+    const lines = [];
+    let itemCount = 0;
+    order.forEach(function(pid) {
+      const product = getProductById(pid);
+      if (!product) return;
       const positions = getEffectivePositions(product);
       let newAfter;
       if (positions.length > 0) {
@@ -1041,12 +1149,10 @@
       } else {
         newAfter = '?';
       }
-      const line = lines[product.lineIndex];
-      if (typeof line !== 'string') return;
-      const idx = line.indexOf('/');
-      if (idx >= 0) {
-        const name = line.substring(0, idx).trim();
-        lines[product.lineIndex] = name + ' / ' + newAfter;
+      lines.push(product.name + ' / ' + newAfter);
+      itemCount++;
+      if (boundaries.indexOf(itemCount) >= 0) {
+        lines.push('---');
       }
     });
     return lines.join('\n');
@@ -1057,109 +1163,98 @@
     els.configSection.classList.toggle('collapsed');
   }
 
-  function detectGithubRepoFromUrl() {
-    const hostname = window.location.hostname;
-    if (!hostname || !hostname.endsWith('.github.io')) return null;
-    const parts = hostname.split('.');
-    const owner = parts[0];
-    const pathParts = window.location.pathname.split('/').filter(function(p) { return p; });
-    const repo = pathParts.length > 0 ? pathParts[0] : '';
-    if (!owner || !repo) return null;
-    return { owner: owner, repo: repo };
+  function openAreaModal() {
+    if (!els.areaModal) return;
+    els.areaModal.classList.add('show');
+    if (els.areaModalName) els.areaModalName.value = '';
+    if (els.areaModalRows) els.areaModalRows.value = '';
+    if (els.areaModalCols) els.areaModalCols.value = '';
+    if (els.areaModalName) els.areaModalName.focus();
   }
 
-  function loadGithubSettings() {
-    const settings = loadData(GITHUB_SETTINGS_KEY);
-    const detected = (!settings.owner || !settings.repo) ? detectGithubRepoFromUrl() : null;
-    if (els.githubOwner) els.githubOwner.value = settings.owner || (detected ? detected.owner : '');
-    if (els.githubRepo) els.githubRepo.value = settings.repo || (detected ? detected.repo : '');
-    if (els.githubBranch) els.githubBranch.value = settings.branch || 'main';
-    if (els.githubToken) els.githubToken.value = settings.token || '';
+  function closeAreaModal() {
+    if (!els.areaModal) return;
+    els.areaModal.classList.remove('show');
   }
 
-  function saveGithubSettings() {
-    const settings = {
-      owner: els.githubOwner ? els.githubOwner.value.trim() : '',
-      repo: els.githubRepo ? els.githubRepo.value.trim() : '',
-      branch: els.githubBranch ? els.githubBranch.value.trim() : 'main',
-      token: els.githubToken ? els.githubToken.value.trim() : ''
-    };
-    saveData(GITHUB_SETTINGS_KEY, settings);
+  function submitAreaModal() {
+    const name = els.areaModalName ? els.areaModalName.value : '';
+    const rows = els.areaModalRows ? els.areaModalRows.value : '';
+    const cols = els.areaModalCols ? els.areaModalCols.value : '';
+    if (addCustomArea(name, rows, cols)) {
+      closeAreaModal();
+    } else {
+      alert('페이지 이름과 행/열을 확인해주세요.');
+    }
   }
 
-  function utf8ToBase64(text) {
-    const utf8Bytes = new TextEncoder().encode(text);
-    let binary = '';
-    utf8Bytes.forEach(function(b) {
-      binary += String.fromCharCode(b);
+  let selectedReceiptIndex = -1;
+
+  function openReceiptSortModal() {
+    if (!els.receiptSortModal) return;
+    selectedReceiptIndex = -1;
+    renderReceiptSortList();
+    els.receiptSortModal.classList.add('show');
+  }
+
+  function closeReceiptSortModal() {
+    if (!els.receiptSortModal) return;
+    els.receiptSortModal.classList.remove('show');
+  }
+
+  function renderReceiptSortList() {
+    if (!els.receiptSortList) return;
+    els.receiptSortList.innerHTML = '';
+    const order = receiptOrder.length ? receiptOrder : ALL_PRODUCTS.map(function(p) { return p.id; });
+    order.forEach(function(pid, idx) {
+      const product = getProductById(pid);
+      if (!product) return;
+      const item = document.createElement('div');
+      item.className = 'receipt-sort-item' + (idx === selectedReceiptIndex ? ' selected' : '');
+      item.innerHTML = '<span class="receipt-sort-index">' + (idx + 1) + '</span><span class="receipt-sort-name">' + escapeHtml(getReceiptProductName(product)) + '</span>';
+      item.addEventListener('click', function() {
+        selectedReceiptIndex = idx;
+        renderReceiptSortList();
+        const target = prompt('이동할 위치 번호를 입력하세요 (1 ~ ' + order.length + ')', String(idx + 1));
+        if (target === null) {
+          selectedReceiptIndex = -1;
+          renderReceiptSortList();
+          return;
+        }
+        const targetIdx = parseInt(target, 10) - 1;
+        if (isNaN(targetIdx) || targetIdx < 0 || targetIdx >= order.length) {
+          selectedReceiptIndex = -1;
+          renderReceiptSortList();
+          alert('올바른 위치 번호를 입력해주세요.');
+          return;
+        }
+        const moved = order.splice(idx, 1)[0];
+        order.splice(targetIdx, 0, moved);
+        receiptOrder = order.slice();
+        saveReceiptOrder();
+        selectedReceiptIndex = -1;
+        renderReceiptSortList();
+      });
+      els.receiptSortList.appendChild(item);
     });
-    return btoa(binary);
   }
 
-  function saveCigareToGithub() {
-    const detected = detectGithubRepoFromUrl();
-    const owner = els.githubOwner.value.trim() || (detected ? detected.owner : '');
-    const repo = els.githubRepo.value.trim() || (detected ? detected.repo : '');
-    const branch = els.githubBranch.value.trim() || 'main';
-    const token = els.githubToken.value.trim() || DEFAULT_GITHUB_TOKEN;
-    const path = 'Cigare.txt';
-
-    if (!owner || !repo || !token) {
-      alert('GitHub 소유자, 저장소, 토큰을 입력해주세요.');
+  function exportUpdatedCigare() {
+    const content = generateUpdatedCigareText();
+    if (!content) {
+      alert('납(납오)기할 Cigare.txt 내용이 없습니다.');
       return;
     }
-
-    saveGithubSettings();
-    const content = generateUpdatedCigareText();
-    const apiBase = 'https://api.github.com/repos/' + encodeURIComponent(owner) + '/' + encodeURIComponent(repo) + '/contents/' + encodeURIComponent(path);
-
-    fetch(apiBase + '?ref=' + encodeURIComponent(branch), {
-      headers: { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github.v3+json' }
-    })
-    .then(function(res) {
-      if (!res.ok) throw new Error('현재 파일 조회 실패 (' + res.status + ')');
-      return res.json();
-    })
-    .then(function(data) {
-      const sha = data.sha;
-      return fetch(apiBase, {
-        method: 'PUT',
-        headers: {
-          'Authorization': 'token ' + token,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: 'Update Cigare.txt from cigare site',
-          content: utf8ToBase64(content),
-          sha: sha,
-          branch: branch
-        })
-      });
-    })
-    .then(function(res) {
-      if (!res.ok) throw new Error('저장 실패 (' + res.status + ')');
-      showToast('GitHub에 Cigare.txt 저장 완료');
-    })
-    .catch(function(err) {
-      alert('GitHub 저장 실패: ' + err.message);
-    });
-  }
-
-  function refreshCigareFromGithub() {
-    fetch('Cigare.txt?_=' + Date.now())
-      .then(function(res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.text();
-      })
-      .then(function(text) {
-        processCigareText(text);
-        showToast('Cigare.txt 변경사항이 적용되었습니다.');
-      })
-      .catch(function(err) {
-        console.error('Failed to refresh Cigare.txt', err);
-        alert('Cigare.txt를 불러올 수 없습니다. GitHub Pages에서 실행 중인지 확인해주세요.');
-      });
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'Cigare.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Cigare.txt 다운로드 완료');
   }
 
   function showToast(message) {
@@ -1380,33 +1475,41 @@
     if (els.configToggle) {
       els.configToggle.addEventListener('click', toggleConfigSection);
     }
-    if (els.refreshCigareBtn) {
-      els.refreshCigareBtn.addEventListener('click', refreshCigareFromGithub);
+    if (els.exportCigareBtn) {
+      els.exportCigareBtn.addEventListener('click', exportUpdatedCigare);
     }
-    if (els.saveToGithubBtn) {
-      els.saveToGithubBtn.addEventListener('click', saveCigareToGithub);
-    }
-    if (els.githubOwner) {
-      ['change', 'blur'].forEach(function(evt) {
-        els.githubOwner.addEventListener(evt, saveGithubSettings);
+
+    if (els.areaAddBtn) {
+      els.areaAddBtn.addEventListener('click', function() {
+        if (!AREAS) return;
+        openAreaModal();
       });
     }
-    if (els.githubRepo) {
-      ['change', 'blur'].forEach(function(evt) {
-        els.githubRepo.addEventListener(evt, saveGithubSettings);
+    if (els.areaModalClose) els.areaModalClose.addEventListener('click', closeAreaModal);
+    if (els.areaModal) {
+      els.areaModal.addEventListener('click', function(e) {
+        if (e.target === els.areaModal) closeAreaModal();
       });
     }
-    if (els.githubBranch) {
-      ['change', 'blur'].forEach(function(evt) {
-        els.githubBranch.addEventListener(evt, saveGithubSettings);
+    if (els.areaModalAddBtn) els.areaModalAddBtn.addEventListener('click', submitAreaModal);
+    if (els.areaModalName) {
+      els.areaModalName.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') submitAreaModal();
       });
     }
-    if (els.githubToken) {
-      ['change', 'blur'].forEach(function(evt) {
-        els.githubToken.addEventListener(evt, saveGithubSettings);
+
+    if (els.sortReceiptBtn) {
+      els.sortReceiptBtn.addEventListener('click', function() {
+        if (!AREAS) return;
+        openReceiptSortModal();
       });
     }
-    loadGithubSettings();
+    if (els.receiptSortClose) els.receiptSortClose.addEventListener('click', closeReceiptSortModal);
+    if (els.receiptSortModal) {
+      els.receiptSortModal.addEventListener('click', function(e) {
+        if (e.target === els.receiptSortModal) closeReceiptSortModal();
+      });
+    }
   }
 
   init();
